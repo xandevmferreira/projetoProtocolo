@@ -1,0 +1,36 @@
+/* Altera os nomes dos dias da semana para português */
+.react-datepicker__day-name {
+    font-size: 0 !important; /* Esconde o texto original */
+  }
+  
+  .react-datepicker__day-name::after {
+    font-size: 14px;
+    display: block;
+  }
+  
+  .react-datepicker__day-name:nth-child(1)::after {
+    content: "Dom";
+  }
+  .react-datepicker__day-name:nth-child(2)::after {
+    content: "Seg";
+  }
+  .react-datepicker__day-name:nth-child(3)::after {
+    content: "Ter";
+  }
+  .react-datepicker__day-name:nth-child(4)::after {
+    content: "Qua";
+  }
+  .react-datepicker__day-name:nth-child(5)::after {
+    content: "Qui";
+  }
+  .react-datepicker__day-name:nth-child(6)::after {
+    content: "Sex";
+  }
+  .react-datepicker__day-name:nth-child(7)::after {
+    content: "Sáb";
+  }
+  
+  /* Corrige o alinhamento */
+  .react-datepicker__header {
+    text-align: center;
+  }

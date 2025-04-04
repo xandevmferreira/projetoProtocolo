@@ -1,0 +1,14 @@
+from setuptools import setup, find_packages
+
+setup(
+    name="meu_banco.py",
+    version="0.1",
+    packages=find_packages(),
+    install_requires=[
+        "dash",
+        "pandas",
+        "plotly",
+        "dash-bootstrap-components"  # Adicione outras dependências se necessário
+    ],
+    # Remova o entry_points se não tiver uma função "main" definida
+)
