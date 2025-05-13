@@ -1,9 +1,11 @@
 import sqlite3
+import dash                             
 from flask import Flask, redirect
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from dash import Dash, html, dcc, Input, Output, State, no_update, dash_table, clientside_callback, callback_context
 from datetime import datetime
 import time
+app = Dash(__name__, suppress_callback_exceptions=True)
 
 item_style = {'marginTop': '10px', 'fontWeight': 'bold'}
 
@@ -33,9 +35,9 @@ def load_user(user_id):
     c.execute("SELECT id, username, role FROM usuarios WHERE id = ?", (user_id,))
     user = c.fetchone()
     conn.close()
-    if user:
-        return User(user[0], user[1], user[2])
-    return None
+    return User(user[0], user[1], user[2]) if user else None
+
+
 
 # Função para inicializar o banco de dados (incluindo usuários)
 def init_db():
@@ -80,6 +82,28 @@ def init_db():
     conn.close()
 
 init_db()
+
+#Função auxiliar nas buscas de usuário no DB.
+
+def get_usuarios():
+    conn = sqlite3.connect('protocolo.db')
+    c = conn.cursor()
+    c.execute("SELECT id, username, role FROM usuarios")
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {"id": r[0], "username": r[1], "role": r[2]}
+        for r in rows
+    ]
+
+# Função para buscar os protocolos
+def get_protocolos():
+    conn = sqlite3.connect('protocolo.db')
+    c = conn.cursor()
+    c.execute("SELECT nome FROM protocolo")
+    protocolos = c.fetchall()
+    conn.close()
+    return [{"label": p[0], "value": p[0]} for p in protocolos]
 
 # Função para buscar os protocolos
 def get_protocolos():
@@ -170,6 +194,144 @@ layout_visualizacao = html.Div([
     dcc.Link("Voltar", href="/")
 ], style={'padding': '20px'})
 
+# 3) Layout de gerenciamento de usuários (agora contendo cadastro, edição E deleção)
+layout_usuarios = html.Div([
+    html.H3("Gerenciamento de Usuários"),
+
+    # cadastro
+    html.Div([
+        dcc.Input(id='novo-username', placeholder='Novo Usuário', style={'margin': '5px'}),
+        dcc.Input(id='novo-password', type='password', placeholder='Senha', style={'margin': '5px'}),
+        dcc.Dropdown(
+            id='novo-role',
+            options=[{'label': 'admin', 'value': 'admin'},
+                     {'label': 'user',  'value': 'user'}],
+            placeholder="Selecione a permissão",
+            style={'width': '200px', 'margin': '5px'}
+        ),
+        html.Button('Criar Usuário', id='cadastrar-usuario-button', n_clicks=0, style={'margin': '5px'})
+    ], style={'borderBottom': '1px solid #ccc', 'paddingBottom': '1rem'}),
+
+    # edição
+    html.Div([
+        dcc.Input(id='edit-user-id', type='number', placeholder='ID p/ Editar', style={'margin': '5px'}),
+        dcc.Input(id='edit-username', placeholder='Novo Username', style={'margin': '5px'}),
+        dcc.Input(id='edit-password', type='password', placeholder='Nova Senha', style={'margin': '5px'}),
+        dcc.Dropdown(
+            id='edit-role',
+            options=[{'label': 'admin', 'value': 'admin'},
+                     {'label': 'user',  'value': 'user'}],
+            placeholder="Novo Role",
+            style={'width': '200px', 'margin': '5px'}
+        ),
+        html.Button('Atualizar Usuário', id='atualizar-usuario-button', n_clicks=0, style={'margin': '5px'})
+    ], style={'borderBottom': '1px solid #ccc', 'paddingBottom': '1rem'}),
+
+    # deleção
+    html.Div([
+        dcc.Input(id='delete-user-id', type='number', placeholder='ID p/ Deletar', style={'margin': '5px'}),
+        html.Button('Deletar Usuário', id='deletar-usuario-button', n_clicks=0,
+                    style={'margin': '5px', 'backgroundColor': '#d9534f', 'color': 'white'})
+    ], style={'marginBottom': '2rem'}),
+
+    # feedback e tabela já populada
+    html.Div(id='mensagem-gerenciamento', style={'marginBottom': '1rem'}),
+    dash_table.DataTable(
+        id='tabela-usuarios',
+        columns=[
+            {'name': 'ID',       'id': 'id'},
+            {'name': 'Usuário',  'id': 'username'},
+            {'name': 'Função',   'id': 'role'}
+        ],
+        data=get_usuarios(),   # carrega os usuários já existentes
+        page_size=10
+    )
+], style={'padding': '20px'})
+
+
+html.Button('Atualizar', id='atualizar-dados', n_clicks=0),
+html.Br(),
+dash_table.DataTable(
+        id='tabela-dados',
+        columns=[
+            {"name": "ID", "id": "id"},
+            {"name": "Protocolo", "id": "protocolo"},
+            {"name": "Caso", "id": "caso"},
+            {"name": "Descrição", "id": "descricao_peca"},
+            {"name": "Distribuição", "id": "data_distribuicao"},
+            {"name": "PAE", "id": "PAE"},
+            {"name": "Prioridade", "id": "prioridade"},
+            {"name": "Prazo", "id": "data_prazo"},
+            {"name": "Responsável", "id": "responsavel"},
+            {"name": "Cor", "id": "cor"}
+        ],
+        page_size=10,
+        row_selectable="single",
+        selected_rows=[],
+        style_table={'overflowX': 'auto'},
+        style_data_conditional=[
+            {
+                'if': {
+                    'filter_query': '{cor} = "green"',
+                    'column_id': 'cor'
+                },
+                'backgroundColor': 'green',
+                'color': 'rgba(0,0,0,0)'
+            },
+            {
+                'if': {
+                    'filter_query': '{cor} = "amarela"',
+                    'column_id': 'cor'
+                },
+                'backgroundColor': 'yellow',
+                'color': 'rgba(0,0,0,0)'
+            },
+            {
+                'if': {
+                    'filter_query': '{cor} = "vermelha"',
+                    'column_id': 'cor'
+                },
+                'backgroundColor': 'red',
+                'color': 'rgba(0,0,0,0)'
+            }
+        ]
+    ),
+html.Br(),
+html.Button("Finalizar Protocolo", id="finalizar-button", n_clicks=0),
+html.Button("Deletar Protocolo", id="deletar-protocolo-button", n_clicks=0,
+            style={'marginLeft': '10px', 'backgroundColor': '#d9534f', 'color': 'white'}),
+html.Div(id="mensagem-deletar", style={'color': 'red', 'marginTop': '10px'}),
+html.Br(),
+dcc.Link("Voltar", href="/")
+
+@app.callback(
+    [Output("tabela-dados", "data", allow_duplicate=True),
+    Output("mensagem-deletar", "children")],
+    Input("deletar-protocolo-button", "n_clicks"),
+    State("tabela-dados", "derived_virtual_data"),
+    State("tabela-dados", "selected_rows"),
+    prevent_initial_call=True
+)
+def deletar_protocolo(n_clicks, table_data, selected_rows):
+    if n_clicks and selected_rows:
+        idx = selected_rows[0]
+        record = table_data[idx]
+        protocolo_id = record["id"]
+        try:
+            conn = sqlite3.connect('protocolo.db')
+            c = conn.cursor()
+            # Se quiser deletar o registro do formulário:
+            c.execute("DELETE FROM formulario WHERE id = ?", (protocolo_id,))
+            conn.commit()
+            conn.close()
+            # Depois recarrega a tabela
+            novos = carregar_dados(1, 0, None, None)
+            return novos, "Protocolo deletado com sucesso."
+        except Exception as e:
+            return no_update, f"Erro ao deletar: {e}"
+    return no_update, ""
+
+
 # Layout de cadastro de protocolos
 layout_cadastro = html.Div([
     html.H3("Novo Cadastro de Protocolo"),
@@ -183,6 +345,7 @@ layout_cadastro = html.Div([
     html.Br(),
     dcc.Link("Ir para Formulário de Cadastro", href="/formulario")
 ], style={'padding': '20px'})
+
 
 # Layout do formulário de cadastro (alinhar à esquerda)
 layout_formulario = html.Div([
@@ -286,21 +449,96 @@ layout_formulario = html.Div([
     dcc.Link("Voltar", href="/cadastro")
 ], style={'padding': '20px', 'textAlign': 'left'})
 
-# Layout de gerenciamento de usuários (somente admin)
-layout_usuarios = html.Div([
-    html.H3("Gerenciamento de Usuários"),
-    dcc.Input(id='novo-username', type='text', placeholder='Novo Usuário', style={'margin': '10px'}),
-    dcc.Input(id='novo-password', type='password', placeholder='Senha', style={'margin': '10px'}),
-    dcc.Dropdown(
-         id='novo-role',
-         options=[{'label': 'admin', 'value': 'admin'}, {'label': 'user', 'value': 'user'}],
-         placeholder="Selecione a permissão",
-         style={'width': '50%', 'margin': '10px'}
-    ),
-    html.Button('Criar Usuário', id='criar-usuario-button', n_clicks=0),
-    html.Div(id='mensagem-usuario', style={'color': 'green', 'marginTop': '10px'}),
-    dcc.Link("Voltar", href="/")
-], style={'padding': '20px', 'textAlign': 'center'})
+@app.callback(
+    Output("mensagem-gerenciamento", "children"),
+    Output("tabela-usuarios", "data"),
+    Input("cadastrar-usuario-button", "n_clicks"),
+    Input("atualizar-usuario-button", "n_clicks"),
+    Input("deletar-usuario-button", "n_clicks"),
+    State("novo-username", "value"),
+    State("novo-password", "value"),
+    State("novo-role", "value"),
+    State("edit-user-id", "value"),
+    State("edit-username", "value"),
+    State("edit-password", "value"),
+    State("edit-role", "value"),
+    State("delete-user-id", "value"),
+)
+def gerenciar_usuarios(n_clicks_cadastrar, n_clicks_atualizar, n_clicks_deletar,
+                       novo_username, novo_password, novo_role,
+                       edit_user_id, edit_username, edit_password, edit_role,
+                       delete_user_id):
+    ctx = dash.callback_context
+
+    if not ctx.triggered:
+        raise dash.exceptions.PreventUpdate
+
+    botao_clicado = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    conn = sqlite3.connect('protocolo.db')
+    c = conn.cursor()
+
+    try:
+        if botao_clicado == 'cadastrar-usuario-button':
+            if not novo_username or not novo_password or not novo_role:
+                conn.close()
+                return "Preencha todos os campos para cadastrar o usuário.", dash.no_update
+            try:
+                c.execute("INSERT INTO usuarios (username, password, role) VALUES (?, ?, ?)", 
+                          (novo_username, novo_password, novo_role))
+                conn.commit()
+                mensagem = f"Usuário {novo_username} cadastrado com sucesso!"
+            except sqlite3.IntegrityError:
+                conn.close()
+                return "Usuário já existe!", dash.no_update
+
+        elif botao_clicado == 'atualizar-usuario-button':
+            if not edit_user_id:
+                conn.close()
+                return "Informe o ID do usuário para atualizar.", dash.no_update
+            updates = []
+            params = []
+            if edit_username:
+                updates.append("username = ?")
+                params.append(edit_username)
+            if edit_password:
+                updates.append("password = ?")
+                params.append(edit_password)
+            if edit_role:
+                updates.append("role = ?")
+                params.append(edit_role)
+            if not updates:
+                conn.close()
+                return "Nenhum campo para atualizar.", dash.no_update
+            params.append(edit_user_id)
+            query = "UPDATE usuarios SET " + ", ".join(updates) + " WHERE id = ?"
+            c.execute(query, tuple(params))
+            conn.commit()
+            mensagem = "Usuário atualizado com sucesso."
+
+        elif botao_clicado == 'deletar-usuario-button':
+            if not delete_user_id:
+                conn.close()
+                return "Informe o ID do usuário para deletar.", dash.no_update
+            c.execute("DELETE FROM usuarios WHERE id = ?", (delete_user_id,))
+            conn.commit()
+            mensagem = "Usuário deletado com sucesso."
+
+        else:
+            conn.close()
+            raise dash.exceptions.PreventUpdate
+
+        # Atualiza a tabela após qualquer operação
+        c.execute("SELECT id, username, role FROM usuarios")
+        users = c.fetchall()
+        data = [{'id': u[0], 'username': u[1], 'role': u[2]} for u in users]
+        conn.close()
+
+        return mensagem, data
+
+    except Exception as e:
+        conn.close()
+        return f"Erro: {str(e)}", dash.no_update
 
 # Layout principal
 app.layout = html.Div([
@@ -310,7 +548,6 @@ app.layout = html.Div([
     dcc.Interval(id='logout-check-interval', interval=60*1000),
     html.Div(id='activity-tracker', n_clicks=0, style={'display': 'none'}),
 
-    # Botão para Dark Mode e Logout
     html.Div([
         dcc.Checklist(
             id='dark-mode',
@@ -322,7 +559,6 @@ app.layout = html.Div([
                    style={'position': 'absolute', 'right': '10px', 'top': '10px'})
     ], style={'position': 'relative', 'textAlign': 'center', 'margin': '10px'}),
 
-    # Links de navegação (incluindo Gerenciar Usuários para admin)
     html.Div([
         dcc.Link("Cadastro de Protocolo", href="/cadastro"),
         html.Br(),
@@ -378,30 +614,6 @@ def login(n_clicks, username, password):
         return "Credenciais inválidas! Tente novamente."
     return no_update
 
-# Callback para criar novos usuários (somente admin)
-@app.callback(
-    Output('mensagem-usuario', 'children'),
-    Input('criar-usuario-button', 'n_clicks'),
-    [State('novo-username', 'value'),
-     State('novo-password', 'value'),
-     State('novo-role', 'value')],
-    prevent_initial_call=True
-)
-def criar_usuario(n_clicks, novo_username, novo_password, novo_role):
-    if n_clicks > 0:
-        if not novo_username or not novo_password or not novo_role:
-            return "Preencha todos os campos."
-        try:
-            conn = sqlite3.connect('protocolo.db')
-            c = conn.cursor()
-            c.execute("INSERT INTO usuarios (username, password, role) VALUES (?, ?, ?)", (novo_username, novo_password, novo_role))
-            conn.commit()
-            conn.close()
-            return f"Usuário {novo_username} criado com sucesso!"
-        except sqlite3.IntegrityError:
-            return "Usuário já existe!"
-    return no_update
-
 # Atualiza o timestamp da última atividade
 @app.callback(
     Output('last-activity', 'data'),
@@ -413,9 +625,10 @@ def update_last_activity(_):
 
 # Verifica inatividade e faz logout
 @app.callback(
-    Output("url", "pathname", allow_duplicate=True),
+    Output("url", "pathname"),
     Input("logout-button", "n_clicks"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
+    allow_duplicate=True
 )
 def logout(n_clicks):
     if n_clicks > 0:
@@ -552,7 +765,6 @@ def salvar_formulario(n_clicks, protocolo, caso, descricao_peca, data_distribuic
     try:
         conn = sqlite3.connect('protocolo.db')
         cursor = conn.cursor()
-        # Se o usuário não for admin, forçamos que o responsável seja o seu nome
         if current_user.role != 'admin':
             responsavel = current_user.username
         cursor.execute('''
@@ -587,14 +799,15 @@ def salvar_formulario(n_clicks, protocolo, caso, descricao_peca, data_distribuic
 
 # Callback para carregar os dados na tabela de registros,
 # utilizando callback_context para detectar o botão acionado e aplicando controle de acesso,
-# além de calcular a cor com base na data prazo:
+# além de recalcular a cor com base na data prazo.
 @app.callback(
     Output("tabela-dados", "data"),
     [Input("atualizar-dados", "n_clicks"),
      Input("buscar-button", "n_clicks")],
     [State("filtro_protocolo", "value"),
      State("buscar-protocolo", "value")],
-    prevent_initial_call=True
+    prevent_initial_call=True,
+    allow_duplicate=True
 )
 def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
     ctx = callback_context
@@ -603,7 +816,6 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     conn = sqlite3.connect('protocolo.db')
     c = conn.cursor()
-    # Se o usuário for admin, ele pode ver todos os registros
     if current_user.role == 'admin':
         if trigger_id == "buscar-button" and buscar_value:
             c.execute("SELECT * FROM formulario WHERE protocolo LIKE ?", ('%' + buscar_value + '%',))
@@ -612,7 +824,6 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
         else:
             c.execute("SELECT * FROM formulario")
     else:
-        # Usuários com role 'user' só veem registros onde o responsável é o seu nome
         user_name = current_user.username
         if trigger_id == "buscar-button" and buscar_value:
             c.execute("SELECT * FROM formulario WHERE responsavel = ? AND responsavel LIKE ?", (user_name, '%' + buscar_value + '%'))
@@ -620,22 +831,26 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
             c.execute("SELECT * FROM formulario WHERE responsavel = ?", (user_name,))
     rows = c.fetchall()
     conn.close()
-    # Para cada registro, se não estiver finalizado (cor != 'green'), calcular a cor com base na data prazo
     tabela = []
     for row in rows:
         record = list(row)
-        # record[7] é data_prazo e record[9] é cor
-        if record[9] != "green" and record[7]:
-            try:
-                prazo = datetime.strptime(record[7], "%d/%m/%Y")
-                dias_restantes = (prazo - datetime.now()).days
-                if 8 <= dias_restantes <= 15:
-                    record[9] = "amarela"
-                elif dias_restantes <= 7:
-                    record[9] = "vermelha"
-                else:
+        pae_value = record[5]
+        data_prazo = record[7]
+        if record[9] != "green":
+            if data_prazo:
+                try:
+                    if "-" in data_prazo:
+                        prazo = datetime.strptime(data_prazo, "%Y-%m-%d").date()
+                    else:
+                        prazo = datetime.strptime(data_prazo, "%d/%m/%Y").date()
+                    dias_restantes = (prazo - datetime.today().date()).days
+                    if dias_restantes > 10:
+                        record[9] = "amarela"
+                    else:
+                        record[9] = "vermelha"
+                except Exception:
                     record[9] = ""
-            except Exception as e:
+            else:
                 record[9] = ""
         tabela.append({
             "id": record[0],
@@ -643,9 +858,9 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
             "caso": record[2],
             "descricao_peca": record[3],
             "data_distribuicao": record[4],
-            "PAE": record[5],
+            "PAE": pae_value,
             "prioridade": record[6],
-            "data_prazo": record[7],
+            "data_prazo": data_prazo,
             "responsavel": record[8],
             "cor": record[9]
         })
@@ -657,7 +872,8 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
     Input("finalizar-button", "n_clicks"),
     State("tabela-dados", "derived_virtual_data"),
     State("tabela-dados", "selected_rows"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
+    allow_duplicate=True
 )
 def finalizar_protocolo(n_clicks, table_data, selected_rows):
     if n_clicks > 0 and selected_rows is not None and len(selected_rows) > 0:
@@ -666,11 +882,9 @@ def finalizar_protocolo(n_clicks, table_data, selected_rows):
         protocolo_id = record["id"]
         conn = sqlite3.connect('protocolo.db')
         c = conn.cursor()
-        # Atualiza o campo cor para green no registro selecionado
         c.execute("UPDATE formulario SET cor = ? WHERE id = ?", ("green", protocolo_id))
         conn.commit()
         conn.close()
-        # Após a atualização, recarrega os dados
         return carregar_dados(1, 0, None, None)
     return no_update
 
@@ -685,4 +899,5 @@ def tema_escuro(modo):
         return {'backgroundColor': '#ADD8E6', 'minHeight': '100vh'}
 
 if __name__ == '__main__':
+    
     app.run(host="0.0.0.0", port=8050, debug=True)
