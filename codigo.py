@@ -130,7 +130,7 @@ layout_visualizacao = html.Div([
         id="buscar-protocolo",
         type="text",
         placeholder="Buscar por protocolo",
-        style={'width': '50%', 'marginBottom': '20px'}
+        style={'width': '20%', 'marginBottom': '20px'}
     ),
     html.Button('Buscar', id='buscar-button', n_clicks=0),
     html.Div(id="buscar-message", style={'color': 'red', 'marginBottom': '20px'}),
@@ -338,7 +338,7 @@ layout_cadastro = html.Div([
     dcc.Input(
         id='novo-protocolo',
         placeholder='Número de protocolo',
-        style={'margin-right': '10px', 'width': '100%'}
+        style={'margin-right': '10px', 'width': '20%'}
     ),
     html.Button('Adicionar Protocolo', id='adicionar-protocolo', n_clicks=0),
     html.Div(id='mensagem-protocolo', style={'margin-top': '10px'}),
@@ -349,105 +349,167 @@ layout_cadastro = html.Div([
 
 # Layout do formulário de cadastro (alinhar à esquerda)
 layout_formulario = html.Div([
-    html.H3("Formulário de Cadastro", id="titulo-formulario"),
+    html.H3(
+    "Formulário de Cadastro", 
+    id="titulo-formulario", 
+    style={
+        'textAlign': 'center',
+        'marginBottom': '30px',
+        'width': '100%',  # Garante ocupação total da largura
+        'display': 'block',  # Força comportamento de bloco
+        'fontSize': '24px',  # Tamanho adequado
+        'color': '#2c3e50'  # Cor contrastante
+    }
+),
+    
     html.Div([
+        
+        # Linha 1 - Protocolo e Caso
         html.Div([
-            html.Label('Protocolo', style=item_style),
-            dcc.Dropdown(
-                id='protocolo',
-                placeholder="Selecione o protocolo",
-                options=get_protocolos(),
-                style={'width': '100%'}
-            )
-        ]),
+            html.Div([
+                html.Label('Protocolo', style={**item_style, 'minWidth': '120px'}),
+                dcc.Dropdown(
+                    id='protocolo',
+                    placeholder="Selecione o protocolo",
+                    options=get_protocolos(),
+                    style={'width': '100%'}
+                )
+            ], style={'flex': 1, 'marginRight': '20px'}),
+            
+            html.Div([
+                html.Label('Caso', style={**item_style, 'minWidth': '120px'}),
+                dcc.Input(
+                    id='caso',
+                    type='number',
+                    placeholder='Número do caso',
+                    style={'width': '100%'}
+                )
+            ], style={'flex': 1})
+        ], style={'display': 'flex', 'marginBottom': '25px', 'gap': '20px'}),
+        
         html.Div([
-            html.Label('Caso', style=item_style),
-            dcc.Input(
-                id='caso',
-                type='number',
-                placeholder='Digite o número do caso',
-                style={'width': '100%'}
-            )
-        ]),
+            html.Div([
+                html.Label('Descrição da peça', style=item_style),
+                dcc.Input(
+                    id='descricao_peca',
+                    type='text',
+                    placeholder='Descrição da peça',
+                    style={'width': '100%'}
+                )
+            ], style={'flex': 2, 'marginRight': '20px'}),
+            
+            html.Div([
+                html.Label('Data da distribuição', style=item_style),
+                dcc.DatePickerSingle(
+                    id='data_distribuicao',
+                    placeholder="Selecione a data",
+                    display_format='DD/MM/YYYY',
+                    month_format='MMMM YYYY',
+                    first_day_of_week=1,
+                    style={'width': '100%'}
+                )
+            ], style={'flex': 1})
+        ], style={'display': 'flex', 'marginBottom': '25px', 'gap': '20px'}),
+        
+        # Linha 3 - PAE e Prioridade
         html.Div([
-            html.Label('Descrição da peça', style=item_style),
-            dcc.Input(
-                id='descricao_peca',
-                type='text',
-                placeholder='Digite a descrição da peça',
-                style={'width': '100%'}
-            )
-        ]),
+            html.Div([
+                html.Label('PAE', style=item_style),
+                dcc.RadioItems(
+                    id='pae',
+                    options=[{'label': 'Sim', 'value': 'Sim'}, {'label': 'Não', 'value': 'Não'}],
+                    value=None,
+                    labelStyle={'display': 'inline-block', 'marginRight': '15px'}
+                )
+            ], style={'flex': 1, 'marginRight': '30px'}),
+            
+            html.Div([
+                html.Label('Prioridade', style=item_style),
+                dcc.RadioItems(
+                    id='prioridade',
+                    options=[
+                        {'label': 'Baixa', 'value': 'Baixa'},
+                        {'label': 'Média', 'value': 'Média'},
+                        {'label': 'Alta', 'value': 'Alta'}
+                    ],
+                    value=None,
+                    labelStyle={'display': 'inline-block', 'marginRight': '15px'}
+                )
+            ], style={'flex': 1})
+        ], style={'display': 'flex', 'marginBottom': '25px', 'gap': '20px'}),
+        
+       
         html.Div([
-            html.Label('Data da distribuição', style=item_style),
-            dcc.DatePickerSingle(
-                id='data_distribuicao',
-                placeholder="Selecione a data",
-                display_format='DD/MM/YYYY',
-                month_format='MMMM YYYY',
-                first_day_of_week=1,
-                style={'width': '100%'}
-            )
-        ]),
-        html.Div([
-            html.Label('PAE', style=item_style),
-            dcc.RadioItems(
-                id='pae',
-                options=[{'label': 'Sim', 'value': 'Sim'}, {'label': 'Não', 'value': 'Não'}],
-                value=None,
-                labelStyle={'display': 'block'}
-            )
-        ]),
-        html.Div([
-            html.Label('Prioridade', style=item_style),
-            dcc.RadioItems(
-                id='prioridade',
-                options=[
-                    {'label': 'Baixa', 'value': 'Baixa'},
-                    {'label': 'Média', 'value': 'Média'},
-                    {'label': 'Alta', 'value': 'Alta'}
-                ],
-                value=None,
-                labelStyle={'display': 'block'}
-            )
-        ]),
-        html.Div([
-            html.Label('Data prazo', style=item_style),
-            dcc.DatePickerSingle(
-                id='data_prazo',
-                placeholder="Selecione a data",
-                display_format='DD/MM/YYYY',
-                month_format='MMMM YYYY',
-                first_day_of_week=1,
-                style={'width': '100%'}
-            )
-        ]),
-        html.Div([
-            html.Label('Responsável', style=item_style),
-            dcc.Input(
-                id='responsavel',
-                type='text',
-                placeholder='Digite o nome do responsável',
-                style={'width': '100%'}
-            )
-        ]),
-        html.Div([
-            html.Label('Observações', style=item_style),
-            dcc.Input(
-                id='observacoes',
-                type='text',
-                placeholder='Digite qualquer observação',
-                style={'width': '100%'}
-            )
-        ])
-    ], style={'width': '60%', 'margin': '0', 'border': '1px solid #ccc', 'padding': '20px', 'borderRadius': '5px'}),
-    html.Br(),
-    html.Button('Salvar', id='salvar-button', n_clicks=0,
-                style={'width': '30%', 'margin': '0 auto', 'display': 'block'}),
-    html.Div(id='mensagem', style={'padding': '10px', 'textAlign': 'center'}),
-    html.Br(),
-    dcc.Link("Voltar", href="/cadastro")
-], style={'padding': '20px', 'textAlign': 'left'})
+            html.Div([
+                html.Label('Data prazo', style=item_style),
+                dcc.DatePickerSingle(
+                    id='data_prazo',
+                    placeholder="Selecione a data",
+                    display_format='DD/MM/YYYY',
+                    month_format='MMMM YYYY',
+                    first_day_of_week=1,
+                    style={'width': '100%'}
+                )
+            ], style={'flex': 1, 'marginRight': '20px'}),
+            
+            html.Div([
+                html.Label('Responsável', style=item_style),
+                dcc.Input(
+                    id='responsavel',
+                    type='text',
+                    placeholder='Nome do responsável',
+                    style={'width': '100%'}
+                )
+            ], style={'flex': 1})
+        ], style={'display': 'flex', 'marginBottom': '25px', 'gap': '20px'}),
+        
+        # Observações
+html.Div([
+    html.Label('Observações', style=item_style),
+    dcc.Textarea(
+        id='observacoes',
+        placeholder='Digite suas observações...',
+        style={
+            'width': '100%',
+            'height': '100px',  # Altura fixa
+            'resize': 'vertical',  # Permite redimensionar verticalmente
+            'padding': '10px',
+            'border': '1px solid #ced4da',
+            'borderRadius': '4px',
+            'verticalAlign': 'top',  # Alinha o texto no topo
+            'lineHeight': 'normal'  # Remove espaçamento extra
+        }
+    )
+], style={'marginBottom': '30px', 'display': 'block'})
+        
+    ], style={
+        'maxWidth': '800px',
+        'margin': '0 auto',
+        'padding': '30px',
+        'backgroundColor': '#f8f9fa',
+        'borderRadius': '10px',
+        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
+    }),
+    
+    html.Div([
+        html.Button('Salvar', id='salvar-button', n_clicks=0,
+                    style={
+                        'padding': '10px 30px',
+                        'backgroundColor': '#007bff',
+                        'color': 'white',
+                        'border': 'none',
+                        'borderRadius': '5px',
+                        'cursor': 'pointer'
+                    }),
+        html.Br(),
+        html.Div(id='mensagem', style={'padding': '10px', 'textAlign': 'center', 'marginTop': '15px'}),
+        dcc.Link("Voltar", href="/cadastro", style={'marginTop': '20px', 'display': 'block'})
+    ], style={'textAlign': 'center', 'marginTop': '30px'})
+    
+], style={
+    'padding': '40px 20px',
+    'fontFamily': 'Arial, sans-serif'
+})
 
 @app.callback(
     Output("mensagem-gerenciamento", "children"),
@@ -561,13 +623,11 @@ app.layout = html.Div([
 
     html.Div([
         dcc.Link("Cadastro de Protocolo", href="/cadastro"),
-        html.Br(),
         dcc.Link("Formulário de Cadastro", href="/formulario"),
-        html.Br(),
         dcc.Link("Visualizar Registros", href="/visualizacao"),
-        html.Br(),
         dcc.Link("Gerenciar Usuários", href="/usuarios")
-    ], style={'padding': '10px', 'textAlign': 'center'}),
+    ], style={'padding': '10px', 'textAlign': 'center', 'gap': '5rem', 'display': 'flex', 'justifyContent': 'center'}),
+    
 
     html.Div(id="page-content"),
     html.Div([
@@ -575,6 +635,7 @@ app.layout = html.Div([
         html.Img(src=app.get_asset_url('PCEPA.jfif'), style={'height': '60px', 'marginLeft': '15px'})
     ], style={'position': 'fixed', 'bottom': '0', 'width': '100%', 'backgroundColor': '#f1f1f1', 'textAlign': 'center', 'padding': '10px', 'boxShadow': '0 -2px 5px rgba(0,0,0,0.1)'})
 ], id="main-container", style={'backgroundColor': '#ADD8E6', 'minHeight': '100vh'})
+
 
 # Callback para rastrear atividade do usuário (clientside)
 clientside_callback(
@@ -610,7 +671,7 @@ def login(n_clicks, username, password):
         conn.close()
         if user:
             login_user(User(user[0], user[1], user[2]))
-            return dcc.Location(pathname='/', id='url-redirect')
+            return dcc.Location(pathname='/cadastro', id='url-redirect')
         return "Credenciais inválidas! Tente novamente."
     return no_update
 
