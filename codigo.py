@@ -43,14 +43,7 @@ def load_user(user_id):
 def init_db():
     conn = sqlite3.connect('protocolo.db')
     c = conn.cursor()
-    # Tabela para cadastro de protocolos
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS protocolo (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL UNIQUE
-        )
-    ''')
-    # Tabela para os dados do formulário
+    # Tabela para os dados do formulário (agora com observacoes)
     c.execute('''
         CREATE TABLE IF NOT EXISTS formulario (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,7 +55,8 @@ def init_db():
             prioridade TEXT,
             data_prazo TEXT,
             responsavel TEXT,
-            cor TEXT
+            cor TEXT,
+            observacoes TEXT
         )
     ''')
     # Tabela de usuários
@@ -74,12 +68,16 @@ def init_db():
             role TEXT NOT NULL
         )
     ''')
-    # Insere usuário padrão se não existir
-    c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
-    if not c.fetchone():
-        c.execute("INSERT INTO usuarios (username, password, role) VALUES ('admin', '1234', 'admin')")
+     # Adiciona a coluna observacoes se não existir (para bancos já criados)
+    try:
+        c.execute("ALTER TABLE formulario ADD COLUMN observacoes TEXT")
+    except sqlite3.OperationalError:
+        pass  # Coluna já existe
+    # ...restante do código...
     conn.commit()
     conn.close()
+# ...existing code...
+
 
 init_db()
 
@@ -140,9 +138,21 @@ layout_visualizacao = html.Div([
         placeholder="Filtrar por protocolo",
         style={'width': '50%', 'marginTop': '20px'}
     ),
+    # Dropdown de ordenação
+    dcc.Dropdown(
+        id="ordenacao",
+        options=[
+            {"label": "Mais Recentes", "value": "desc"},
+            {"label": "Mais Antigos", "value": "asc"},
+            {"label": "Prioridade Alta Primeiro", "value": "prioridade_alta"},
+            {"label": "Prioridade Baixa Primeiro", "value": "prioridade_baixa"}
+        ],
+        value="desc",
+        placeholder="Ordenar por",
+        style={'width': '30%', 'marginTop': '20px', 'marginBottom': '10px'}
+    ),
     html.Button('Atualizar', id='atualizar-dados', n_clicks=0),
     html.Br(),
-    # DataTable com row selection e estilo condicional para a coluna "cor"
     dash_table.DataTable(
         id='tabela-dados',
         columns=[
@@ -155,7 +165,8 @@ layout_visualizacao = html.Div([
             {"name": "Prioridade", "id": "prioridade"},
             {"name": "Prazo", "id": "data_prazo"},
             {"name": "Responsável", "id": "responsavel"},
-            {"name": "Cor", "id": "cor"}
+            {"name": "Cor", "id": "cor"},
+            {"name": "Observações", "id": "observacoes"}
         ],
         page_size=10,
         row_selectable="single",
@@ -190,6 +201,9 @@ layout_visualizacao = html.Div([
     ),
     html.Br(),
     html.Button("Finalizar Protocolo", id="finalizar-button", n_clicks=0),
+    html.Button("Deletar Protocolo", id="deletar-protocolo-button", n_clicks=0,
+                style={'marginLeft': '10px', 'backgroundColor': '#d9534f', 'color': 'white'}),
+    html.Div(id="mensagem-deletar", style={'color': 'red', 'marginTop': '10px'}),
     html.Br(),
     dcc.Link("Voltar", href="/")
 ], style={'padding': '20px'})
@@ -796,7 +810,7 @@ def adicionar_protocolo(n_clicks, nome):
 def atualizar_dropdown(data):
     return data if data else []
 
-# Callback para salvar os dados do formulário
+# Callback para salvar os dados do formulário (adicione observacoes)
 @app.callback(
     [Output('mensagem', 'children'),
      Output('protocolo', 'value'),
@@ -820,7 +834,7 @@ def atualizar_dropdown(data):
      State('observacoes', 'value')]
 )
 def salvar_formulario(n_clicks, protocolo, caso, descricao_peca, data_distribuicao,
-                      pae, prioridade, data_prazo, responsavel, cor):
+                      pae, prioridade, data_prazo, responsavel, observacoes):
     if n_clicks == 0:
         return (no_update,)*10
     try:
@@ -830,7 +844,7 @@ def salvar_formulario(n_clicks, protocolo, caso, descricao_peca, data_distribuic
             responsavel = current_user.username
         cursor.execute('''
             INSERT INTO formulario VALUES (
-                NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
         ''', (
             protocolo,
@@ -841,7 +855,8 @@ def salvar_formulario(n_clicks, protocolo, caso, descricao_peca, data_distribuic
             prioridade,
             data_prazo,
             responsavel,
-            cor
+            "",  # cor
+            observacoes
         ))
         conn.commit()
         conn.close()
@@ -856,40 +871,56 @@ def salvar_formulario(n_clicks, protocolo, caso, descricao_peca, data_distribuic
                 prioridade,
                 data_prazo,
                 responsavel,
-                cor)
+                observacoes)
 
-# Callback para carregar os dados na tabela de registros,
-# utilizando callback_context para detectar o botão acionado e aplicando controle de acesso,
-# além de recalcular a cor com base na data prazo.
 @app.callback(
     Output("tabela-dados", "data"),
     [Input("atualizar-dados", "n_clicks"),
      Input("buscar-button", "n_clicks")],
     [State("filtro_protocolo", "value"),
-     State("buscar-protocolo", "value")],
+     State("buscar-protocolo", "value"),
+     State("ordenacao", "value")],  # <-- Adicione este State
     prevent_initial_call=True,
     allow_duplicate=True
 )
-def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
+def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value, ordenacao):
     ctx = callback_context
     if not ctx.triggered:
         raise Exception("No trigger")
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     conn = sqlite3.connect('protocolo.db')
     c = conn.cursor()
+    base_query = "SELECT * FROM formulario"
+    where_clauses = []
+    params = []
     if current_user.role == 'admin':
         if trigger_id == "buscar-button" and buscar_value:
-            c.execute("SELECT * FROM formulario WHERE protocolo LIKE ?", ('%' + buscar_value + '%',))
+            where_clauses.append("protocolo LIKE ?")
+            params.append('%' + buscar_value + '%')
         elif filtro_value:
-            c.execute("SELECT * FROM formulario WHERE protocolo = ?", (filtro_value,))
-        else:
-            c.execute("SELECT * FROM formulario")
+            where_clauses.append("protocolo = ?")
+            params.append(filtro_value)
     else:
         user_name = current_user.username
+        where_clauses.append("responsavel = ?")
+        params.append(user_name)
         if trigger_id == "buscar-button" and buscar_value:
-            c.execute("SELECT * FROM formulario WHERE responsavel = ? AND responsavel LIKE ?", (user_name, '%' + buscar_value + '%'))
-        else:
-            c.execute("SELECT * FROM formulario WHERE responsavel = ?", (user_name,))
+            where_clauses.append("responsavel LIKE ?")
+            params.append('%' + buscar_value + '%')
+    if where_clauses:
+        base_query += " WHERE " + " AND ".join(where_clauses)
+    # Ordenação
+    if ordenacao == "asc":
+        base_query += " ORDER BY id ASC"
+    elif ordenacao == "desc":
+        base_query += " ORDER BY id DESC"
+    elif ordenacao == "prioridade_alta":
+        base_query += " ORDER BY CASE prioridade WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2 ELSE 3 END, id DESC"
+    elif ordenacao == "prioridade_baixa":
+        base_query += " ORDER BY CASE prioridade WHEN 'Baixa' THEN 1 WHEN 'Média' THEN 2 ELSE 3 END, id DESC"
+    else:
+        base_query += " ORDER BY id DESC"
+    c.execute(base_query, tuple(params))
     rows = c.fetchall()
     conn.close()
     tabela = []
@@ -897,22 +928,13 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
         record = list(row)
         pae_value = record[5]
         data_prazo = record[7]
-        if record[9] != "green":
-            if data_prazo:
-                try:
-                    if "-" in data_prazo:
-                        prazo = datetime.strptime(data_prazo, "%Y-%m-%d").date()
-                    else:
-                        prazo = datetime.strptime(data_prazo, "%d/%m/%Y").date()
-                    dias_restantes = (prazo - datetime.today().date()).days
-                    if dias_restantes > 10:
-                        record[9] = "amarela"
-                    else:
-                        record[9] = "vermelha"
-                except Exception:
-                    record[9] = ""
-            else:
-                record[9] = ""
+        prioridade = record[6]
+        if prioridade == "Alta":
+            record[9] = "vermelha"
+        elif prioridade == "Média":
+            record[9] = "amarela"
+        elif prioridade == "Baixa":
+            record[9] = ""
         tabela.append({
             "id": record[0],
             "protocolo": record[1],
@@ -920,10 +942,11 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value):
             "descricao_peca": record[3],
             "data_distribuicao": record[4],
             "PAE": pae_value,
-            "prioridade": record[6],
+            "prioridade": prioridade,
             "data_prazo": data_prazo,
             "responsavel": record[8],
-            "cor": record[9]
+            "cor": record[9],
+            "observacoes": record[10] if len(record) > 10 else ""
         })
     return tabela
 
