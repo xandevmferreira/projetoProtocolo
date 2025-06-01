@@ -929,12 +929,14 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value, ordenacao)
         pae_value = record[5]
         data_prazo = record[7]
         prioridade = record[6]
-        if prioridade == "Alta":
-            record[9] = "vermelha"
-        elif prioridade == "Média":
-            record[9] = "amarela"
-        elif prioridade == "Baixa":
-            record[9] = ""
+        # Só define cor baseada na prioridade se cor estiver vazia
+        if not record[9]:  # cor vazia
+            if prioridade == "Alta":
+                record[9] = "vermelha"
+            elif prioridade == "Média":
+                record[9] = "amarela"
+            elif prioridade == "Baixa":
+                record[9] = ""
         tabela.append({
             "id": record[0],
             "protocolo": record[1],
@@ -969,7 +971,7 @@ def finalizar_protocolo(n_clicks, table_data, selected_rows):
         c.execute("UPDATE formulario SET cor = ? WHERE id = ?", ("green", protocolo_id))
         conn.commit()
         conn.close()
-        return carregar_dados(1, 0, None, None)
+        return carregar_dados(1, 0, None, None, "desc") 
     return no_update
 
 @app.callback(
