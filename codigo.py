@@ -320,7 +320,7 @@ dcc.Link("Voltar", href="/")
 
 @app.callback(
     [Output("tabela-dados", "data", allow_duplicate=True),
-    Output("mensagem-deletar", "children")],
+     Output("mensagem-deletar", "children")],
     Input("deletar-protocolo-button", "n_clicks"),
     State("tabela-dados", "derived_virtual_data"),
     State("tabela-dados", "selected_rows"),
@@ -334,12 +334,11 @@ def deletar_protocolo(n_clicks, table_data, selected_rows):
         try:
             conn = sqlite3.connect('protocolo.db')
             c = conn.cursor()
-            # Se quiser deletar o registro do formulário:
             c.execute("DELETE FROM formulario WHERE id = ?", (protocolo_id,))
             conn.commit()
             conn.close()
-            # Depois recarrega a tabela
-            novos = carregar_dados(1, 0, None, None)
+            # Corrija aqui: passe o argumento 'ordenacao'
+            novos = carregar_dados(1, 0, None, None, "desc")
             return novos, "Protocolo deletado com sucesso."
         except Exception as e:
             return no_update, f"Erro ao deletar: {e}"
@@ -773,12 +772,18 @@ def atualizar_titulo(dark):
 )
 def atualizar_filtro_com_busca(store_data, n_clicks, search_text):
     if search_text and n_clicks > 0:
-        filtered_protocolos = [p for p in store_data if search_text.lower() in p['label'].lower()]
+        # Busca diretamente na tabela formulario
+        conn = sqlite3.connect('protocolo.db')
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT protocolo FROM formulario WHERE protocolo LIKE ?", ('%' + search_text + '%',))
+        protocolos = c.fetchall()
+        conn.close()
+        filtered_protocolos = [{"label": p[0], "value": p[0]} for p in protocolos]
         if not filtered_protocolos:
             return [], "Protocolo não consta"
         return filtered_protocolos, ""
     return store_data, ""
-
+    
 # Callback para adicionar protocolo (no cadastro de protocolos)
 @app.callback(
     [Output('mensagem-protocolo', 'children'),
@@ -893,20 +898,18 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value, ordenacao)
     base_query = "SELECT * FROM formulario"
     where_clauses = []
     params = []
-    if current_user.role == 'admin':
-        if trigger_id == "buscar-button" and buscar_value:
-            where_clauses.append("protocolo LIKE ?")
-            params.append('%' + buscar_value + '%')
-        elif filtro_value:
-            where_clauses.append("protocolo = ?")
-            params.append(filtro_value)
-    else:
+    # Sempre filtra pelo protocolo se buscar_value estiver preenchido
+    if trigger_id == "buscar-button" and buscar_value:
+        where_clauses.append("protocolo LIKE ?")
+        params.append('%' + buscar_value + '%')
+    elif filtro_value:
+        where_clauses.append("protocolo = ?")
+        params.append(filtro_value)
+    # Se não for admin, restringe ao responsável logado
+    if current_user.role != 'admin':
         user_name = current_user.username
         where_clauses.append("responsavel = ?")
         params.append(user_name)
-        if trigger_id == "buscar-button" and buscar_value:
-            where_clauses.append("responsavel LIKE ?")
-            params.append('%' + buscar_value + '%')
     if where_clauses:
         base_query += " WHERE " + " AND ".join(where_clauses)
     # Ordenação
@@ -929,8 +932,7 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value, ordenacao)
         pae_value = record[5]
         data_prazo = record[7]
         prioridade = record[6]
-        # Só define cor baseada na prioridade se cor estiver vazia
-        if not record[9]:  # cor vazia
+        if not record[9]:
             if prioridade == "Alta":
                 record[9] = "vermelha"
             elif prioridade == "Média":
