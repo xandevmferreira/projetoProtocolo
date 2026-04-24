@@ -1,11 +1,23 @@
 import sqlite3
-import dash                             
 from flask import Flask, redirect
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from dash import Dash, html, dcc, Input, Output, State, no_update, dash_table, clientside_callback, callback_context
 from datetime import datetime
 import time
-app = Dash(__name__, suppress_callback_exceptions=True)
+
+# Tentativa segura de importar o Dash — mostra mensagem clara se faltar a dependência
+try:
+    import dash
+    from dash import Dash, html, dcc, Input, Output, State, no_update, dash_table, clientside_callback, callback_context
+except ImportError:
+    raise SystemExit(
+        "Módulo 'dash' não encontrado.\n"
+        "Crie/ative o ambiente virtual do projeto e instale as dependências:\n"
+        "  python -m venv .venv\n"
+        "  .\\.venv\\Scripts\\Activate.ps1\n"
+        "  python -m pip install --upgrade pip\n"
+        "  pip install -r requirements.txt\n"
+        "Ou instale direto: pip install dash\n"
+    )
 
 item_style = {'marginTop': '10px', 'fontWeight': 'bold'}
 
@@ -37,8 +49,6 @@ def load_user(user_id):
     conn.close()
     return User(user[0], user[1], user[2]) if user else None
 
-
-
 # Função para inicializar o banco de dados (incluindo usuários)
 def init_db():
     conn = sqlite3.connect('protocolo.db')
@@ -68,7 +78,14 @@ def init_db():
             role TEXT NOT NULL
         )
     ''')
-     # Adiciona a coluna observacoes se não existir (para bancos já criados)
+    # Tabela de protocolos (nomes de protocolos utilizados nos dropdowns)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS protocolo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL UNIQUE
+        )
+    ''')
+    # Adiciona a coluna observacoes se não existir (para bancos já criados)
     try:
         c.execute("ALTER TABLE formulario ADD COLUMN observacoes TEXT")
     except sqlite3.OperationalError:
@@ -138,7 +155,8 @@ layout_visualizacao = html.Div([
         placeholder="Filtrar por protocolo",
         style={'width': '50%', 'marginTop': '20px'}
     ),
-    # Dropdown de ordenação
+    
+# Dropdown de ordenação
     dcc.Dropdown(
         id="ordenacao",
         options=[
@@ -202,7 +220,7 @@ layout_visualizacao = html.Div([
     html.Br(),
     html.Button("Finalizar Protocolo", id="finalizar-button", n_clicks=0),
     html.Button("Deletar Protocolo", id="deletar-protocolo-button", n_clicks=0,
-                style={'marginLeft': '10px', 'backgroundColor': '#d9534f', 'color': 'white'}),
+                style={'marginLeft': '1800px', 'backgroundColor': '#d9534f', 'color': 'white'}),
     html.Div(id="mensagem-deletar", style={'color': 'red', 'marginTop': '10px'}),
     html.Br(),
     dcc.Link("Voltar", href="/")
@@ -262,54 +280,72 @@ layout_usuarios = html.Div([
     )
 ], style={'padding': '20px'})
 
+# Layout estatísticas (indicadores de laudos)
+
+layout_indicadores = html.Div([
+    html.H3("Indicadores de Laudos"),
+    html.Div(id="indicadores-laudos"),
+    html.Br(),
+    dcc.Link("Voltar", href="/")
+], style={'padding': '20px'})
+
 
 html.Button('Atualizar', id='atualizar-dados', n_clicks=0),
 html.Br(),
+html.Button('Atualizar', id='atualizar-dados', n_clicks=0),
+html.Br(),
 dash_table.DataTable(
-        id='tabela-dados',
-        columns=[
-            {"name": "ID", "id": "id"},
-            {"name": "Protocolo", "id": "protocolo"},
-            {"name": "Caso", "id": "caso"},
-            {"name": "Descrição", "id": "descricao_peca"},
-            {"name": "Distribuição", "id": "data_distribuicao"},
-            {"name": "PAE", "id": "PAE"},
-            {"name": "Prioridade", "id": "prioridade"},
-            {"name": "Prazo", "id": "data_prazo"},
-            {"name": "Responsável", "id": "responsavel"},
-            {"name": "Cor", "id": "cor"}
-        ],
-        page_size=10,
-        row_selectable="single",
-        selected_rows=[],
-        style_table={'overflowX': 'auto'},
-        style_data_conditional=[
-            {
-                'if': {
-                    'filter_query': '{cor} = "green"',
-                    'column_id': 'cor'
-                },
-                'backgroundColor': 'green',
-                'color': 'rgba(0,0,0,0)'
-            },
-            {
-                'if': {
-                    'filter_query': '{cor} = "amarela"',
-                    'column_id': 'cor'
-                },
-                'backgroundColor': 'yellow',
-                'color': 'rgba(0,0,0,0)'
-            },
-            {
-                'if': {
-                    'filter_query': '{cor} = "vermelha"',
-                    'column_id': 'cor'
-                },
-                'backgroundColor': 'red',
-                'color': 'rgba(0,0,0,0)'
-            }
-        ]
-    ),
+    id='tabela-dados',
+    columns=[
+        {"name": "ID", "id": "id"},
+        {"name": "Protocolo", "id": "protocolo"},
+        {"name": "Caso", "id": "caso"},
+        {"name": "Descrição", "id": "descricao_peca"},
+        {"name": "Distribuição", "id": "data_distribuicao"},
+        {"name": "PAE", "id": "PAE"},
+        {"name": "Prioridade", "id": "prioridade"},
+        {"name": "Prazo", "id": "data_prazo"},
+        {"name": "Responsável", "id": "responsavel"},
+        {"name": "Cor", "id": "cor"},
+        {"name": "Observações", "id": "observacoes"}
+    ],
+    page_size=10,
+    row_selectable="single",
+    selected_rows=[],
+    style_table={'overflowX': 'auto'},
+    style_data_conditional=[
+        # Cor apenas na célula da coluna "cor"
+        {
+            'if': {'filter_query': '{cor} = "green"', 'column_id': 'cor'},
+            'backgroundColor': 'green',
+            'color': 'white'
+        },
+        {
+            'if': {'filter_query': '{cor} = "amarela"', 'column_id': 'cor'},
+            'backgroundColor': 'yellow',
+            'color': 'black'
+        },
+        {
+            'if': {'filter_query': '{cor} = "vermelha"', 'column_id': 'cor'},
+            'backgroundColor': 'red',
+            'color': 'white'
+        },
+        # Destacar a linha inteira ao passar o mouse (deixe esta regra por último!)
+        {
+            'if': {'state': 'active'},
+            'backgroundColor': '#b0bec5'
+        }
+    ],
+    style_cell={
+        'padding': '8px',
+        'fontFamily': 'Arial, sans-serif'
+    },
+    style_header={
+        'backgroundColor': '#007bff',
+        'color': 'white',
+        'fontWeight': 'bold'
+    }
+),
 html.Br(),
 html.Button("Finalizar Protocolo", id="finalizar-button", n_clicks=0),
 html.Button("Deletar Protocolo", id="deletar-protocolo-button", n_clicks=0,
@@ -343,7 +379,6 @@ def deletar_protocolo(n_clicks, table_data, selected_rows):
         except Exception as e:
             return no_update, f"Erro ao deletar: {e}"
     return no_update, ""
-
 
 # Layout de cadastro de protocolos
 layout_cadastro = html.Div([
@@ -638,7 +673,8 @@ app.layout = html.Div([
         dcc.Link("Cadastro de Protocolo", href="/cadastro"),
         dcc.Link("Formulário de Cadastro", href="/formulario"),
         dcc.Link("Visualizar Registros", href="/visualizacao"),
-        dcc.Link("Gerenciar Usuários", href="/usuarios")
+        dcc.Link("Gerenciar Usuários", href="/usuarios"),
+        dcc.Link("Indicadores de Laudos", href="/indicadores")
     ], style={'padding': '10px', 'textAlign': 'center', 'gap': '5rem', 'display': 'flex', 'justifyContent': 'center'}),
     
 
@@ -745,6 +781,9 @@ def display_page(pathname):
             return layout_usuarios
         else:
             return html.Div("Acesso negado", style={'padding': '20px', 'textAlign': 'center'})
+    # ADICIONE ESTA LINHA ABAIXO:
+    elif pathname == "/indicadores":
+        return layout_indicadores
     return layout_cadastro
 
 # Callback para atualizar o título do formulário conforme Dark Mode
@@ -953,6 +992,53 @@ def carregar_dados(n_atualizar, n_buscar, filtro_value, buscar_value, ordenacao)
             "observacoes": record[10] if len(record) > 10 else ""
         })
     return tabela
+
+# Callback para carregar os dados da tabela
+
+@app.callback(
+    Output("indicadores-laudos", "children"),
+    Input("url", "pathname")
+)
+def mostrar_indicadores(pathname):
+    if pathname != "/indicadores":
+        raise dash.exceptions.PreventUpdate
+
+    conn = sqlite3.connect('protocolo.db')
+    c = conn.cursor()
+
+    # Total de laudos
+    c.execute("SELECT COUNT(*) FROM formulario")
+    total = c.fetchone()[0]
+
+    # Laudos finalizados (cor = 'green')
+    c.execute("SELECT COUNT(*) FROM formulario WHERE cor = 'green'")
+    finalizados = c.fetchone()[0]
+
+    # Laudos por finalizar (cor != 'green' ou NULL)
+    c.execute("SELECT COUNT(*) FROM formulario WHERE cor IS NULL OR cor != 'green'")
+    por_finalizar = c.fetchone()[0]
+
+    # Laudos por usuário
+    c.execute("SELECT responsavel, COUNT(*) FROM formulario GROUP BY responsavel")
+    por_usuario = c.fetchall()
+
+    # Laudos por área (exemplo: campo 'descricao_peca' ou outro campo de área)
+    c.execute("SELECT descricao_peca, COUNT(*) FROM formulario GROUP BY descricao_peca")
+    por_area = c.fetchall()
+
+    conn.close()
+
+    return html.Div([
+        html.H4(f"Total de laudos: {total}"),
+        html.H4(f"Laudos finalizados: {finalizados}"),
+        html.H4(f"Laudos por finalizar: {por_finalizar}"),
+        html.Hr(),
+        html.H5("Laudos por usuário:"),
+        html.Ul([html.Li(f"{u}: {qtd}") for u, qtd in por_usuario]),
+        html.Hr(),
+        html.H5("Laudos por área:"),
+        html.Ul([html.Li(f"{area}: {qtd}") for area, qtd in por_area])
+    ])
 
 # Callback para finalizar protocolo (atualiza a cor para green)
 @app.callback(
